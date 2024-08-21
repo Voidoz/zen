@@ -6,9 +6,9 @@ use rquickjs::{CatchResultExt, Ctx, FromJs, IntoAtom, IntoJs, Object, Value};
 use std::str::FromStr;
 use std::sync::OnceLock;
 
-use crate::handler::function::error::ResultExt;
-use crate::handler::function::module::export_default;
-use crate::handler::function::serde::JsValue;
+use crate::handler::function::js::error::ResultExt;
+use crate::handler::function::js::module::export_default;
+use crate::handler::function::js::serde::JsValue;
 
 pub(crate) struct HttpResponse<'js> {
     data: Value<'js>,

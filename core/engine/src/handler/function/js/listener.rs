@@ -3,7 +3,7 @@ use std::pin::Pin;
 
 use rquickjs::Ctx;
 
-use crate::handler::function::error::FunctionResult;
+use crate::handler::function::js::error::FunctionResult;
 
 #[derive(Clone, PartialEq)]
 pub(crate) enum RuntimeEvent {

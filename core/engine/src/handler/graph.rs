@@ -1,7 +1,5 @@
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Instant;
 
 use anyhow::anyhow;
 use petgraph::algo::is_cyclic_directed;
@@ -10,21 +8,30 @@ use serde::{Deserialize, Serialize, Serializer};
 use serde_json::Value;
 use thiserror::Error;
 
+#[cfg(all(feature = "js", not(target_family = "wasm")))]
+use crate::{
+    handler::{
+        function::{
+            js::FunctionHandler,
+            js_v1::{self, runtime::create_runtime},
+        },
+        node::NodeResponse,
+    },
+    model::FunctionNodeContent,
+};
+
 use crate::handler::custom_node_adapter::{CustomNodeAdapter, CustomNodeRequest};
 use crate::handler::decision::DecisionHandler;
 use crate::handler::expression::ExpressionHandler;
-use crate::handler::function::function::{Function, FunctionConfig};
-use crate::handler::function::module::console::ConsoleListener;
-use crate::handler::function::module::zen::ZenListener;
-use crate::handler::function::FunctionHandler;
-use crate::handler::function_v1;
-use crate::handler::function_v1::runtime::create_runtime;
 use crate::handler::node::NodeRequest;
 use crate::handler::table::zen::DecisionTableHandler;
 use crate::handler::traversal::{GraphWalker, StableDiDecisionGraph};
 use crate::loader::DecisionLoader;
-use crate::model::{DecisionContent, DecisionNodeKind, FunctionNodeContent};
+use crate::model::{DecisionContent, DecisionNodeKind};
+use crate::platform::time::Performance;
 use crate::{EvaluationError, NodeError};
+
+use super::function::FunctionRuntime;
 
 pub struct DecisionGraph<'a, L: DecisionLoader + 'static, A: CustomNodeAdapter + 'static> {
     graph: StableDiDecisionGraph<'a>,
@@ -33,7 +40,7 @@ pub struct DecisionGraph<'a, L: DecisionLoader + 'static, A: CustomNodeAdapter +
     trace: bool,
     max_depth: u8,
     iteration: u8,
-    runtime: Option<Rc<Function>>,
+    runtime: FunctionRuntime,
 }
 
 pub struct DecisionGraphConfig<'a, L: DecisionLoader + 'static, A: CustomNodeAdapter + 'static> {
@@ -79,35 +86,13 @@ impl<'a, L: DecisionLoader + 'static, A: CustomNodeAdapter + 'static> DecisionGr
             loader: config.loader,
             adapter: config.adapter,
             max_depth: config.max_depth,
-            runtime: None,
+            runtime: Default::default(),
         })
     }
 
-    pub(crate) fn with_function(mut self, runtime: Option<Rc<Function>>) -> Self {
+    pub(crate) fn with_runtime(mut self, runtime: FunctionRuntime) -> Self {
         self.runtime = runtime;
         self
-    }
-
-    async fn get_or_insert_function(&mut self) -> anyhow::Result<Rc<Function>> {
-        if let Some(function) = &self.runtime {
-            return Ok(function.clone());
-        }
-
-        let function = Function::create(FunctionConfig {
-            listeners: Some(vec![
-                Box::new(ConsoleListener),
-                Box::new(ZenListener {
-                    loader: self.loader.clone(),
-                    adapter: self.adapter.clone(),
-                }),
-            ]),
-        })
-        .await
-        .map_err(|err| anyhow!(err.to_string()))?;
-        let rc_function = Rc::new(function);
-        self.runtime.replace(rc_function.clone());
-
-        Ok(rc_function)
     }
 
     pub fn validate(&self) -> Result<(), DecisionGraphValidationError> {
@@ -140,7 +125,7 @@ impl<'a, L: DecisionLoader + 'static, A: CustomNodeAdapter + 'static> DecisionGr
     }
 
     pub async fn evaluate(&mut self, context: &Value) -> Result<DecisionGraphResponse, NodeError> {
-        let root_start = Instant::now();
+        let root_start = Performance::now();
 
         self.validate().map_err(|e| NodeError {
             node_id: "".to_string(),
@@ -170,7 +155,7 @@ impl<'a, L: DecisionLoader + 'static, A: CustomNodeAdapter + 'static> DecisionGr
             }
 
             let node = self.graph[nid];
-            let start = Instant::now();
+            let start = Performance::now();
 
             macro_rules! trace {
                 ($data: tt) => {
@@ -213,44 +198,49 @@ impl<'a, L: DecisionLoader + 'static, A: CustomNodeAdapter + 'static> DecisionGr
 
                     walker.set_node_data(nid, input_data);
                 }
+                #[cfg(all(feature = "js", not(target_family = "wasm")))]
                 DecisionNodeKind::FunctionNode { content } => {
-                    let function = self.get_or_insert_function().await.map_err(|e| NodeError {
-                        source: e.into(),
-                        node_id: node.id.clone(),
-                    })?;
-
                     let mut node_request = NodeRequest {
                         node,
                         iteration: self.iteration,
                         input: walker.incoming_node_data(&self.graph, nid, true),
                     };
-                    let mut res = match content {
-                        FunctionNodeContent::Version2(_) => FunctionHandler::new(
-                            function,
-                            self.trace,
-                            self.iteration,
-                            self.max_depth,
-                        )
-                        .handle(&node_request)
-                        .await
-                        .map_err(|e| NodeError {
-                            source: e.into(),
-                            node_id: node.id.clone(),
-                        })?,
+                    let mut res: NodeResponse = match content {
+                        #[cfg(all(feature = "js", not(target_family = "wasm")))]
+                        FunctionNodeContent::Version2(_) => {
+                            let function = self.runtime.get_or_insert_js_function(self.loader.clone(), self.adapter.clone()).await.map_err(|e| NodeError {
+                                source: e.into(),
+                                node_id: node.id.clone(),
+                            })?;
+
+                            FunctionHandler::new(
+                                function,
+                                self.trace,
+                                self.iteration,
+                                self.max_depth,
+                            )
+                            .handle(&node_request)
+                            .await
+                            .map_err(|e| NodeError {
+                                source: e.into(),
+                                node_id: node.id.clone(),
+                            })?
+                        },
+                        #[cfg(all(feature = "js", not(target_family = "wasm")))]
                         FunctionNodeContent::Version1(_) => {
                             let runtime = create_runtime().map_err(|e| NodeError {
                                 source: e.into(),
                                 node_id: node.id.clone(),
                             })?;
 
-                            function_v1::FunctionHandler::new(self.trace, runtime)
+                            js_v1::FunctionHandler::new(self.trace, runtime)
                                 .handle(&node_request)
                                 .await
                                 .map_err(|e| NodeError {
                                     source: e.into(),
                                     node_id: node.id.clone(),
                                 })?
-                        }
+                        },
                     };
 
                     trim_nodes(&mut node_request.input);
@@ -265,6 +255,13 @@ impl<'a, L: DecisionLoader + 'static, A: CustomNodeAdapter + 'static> DecisionGr
                         trace_data: res.trace_data,
                     });
                     walker.set_node_data(nid, res.output);
+                }
+                #[cfg(any(not(feature = "js"), target_family = "wasm"))]
+                DecisionNodeKind::FunctionNode { .. } => {
+                    return Err(NodeError{
+                        source: anyhow::Error::msg("This type of function node isn't supported"),
+                        node_id: node.id.clone(),
+                    })
                 }
                 DecisionNodeKind::DecisionNode { .. } => {
                     let mut node_request = NodeRequest {

@@ -126,6 +126,7 @@ mod decision;
 mod engine;
 mod error;
 pub mod handler;
+pub mod platform;
 mod util;
 
 mod config;

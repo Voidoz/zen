@@ -7,8 +7,8 @@ use rquickjs::loader::{Bundle, Loader, ModuleLoader as MDLoader, Resolver};
 use rquickjs::module::{Declared, Exports};
 use rquickjs::{embed, Ctx, Error, Module, Object};
 
-use crate::handler::function::module::http::HttpModule;
-use crate::handler::function::module::zen::ZenModule;
+use crate::handler::function::js::module::http::HttpModule;
+use crate::handler::function::js::module::zen::ZenModule;
 
 pub(crate) mod console;
 pub(crate) mod http;

@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use crate::handler::function_v1::script::Script;
+use crate::handler::function::js_v1::script::Script;
 use crate::handler::node::{NodeRequest, NodeResponse, NodeResult};
 use crate::model::{DecisionNodeKind, FunctionNodeContent};
 use anyhow::anyhow;

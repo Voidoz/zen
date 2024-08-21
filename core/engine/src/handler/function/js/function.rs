@@ -5,11 +5,11 @@ use rquickjs::{async_with, AsyncContext, AsyncRuntime, CatchResultExt, Ctx, Modu
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::handler::function::error::{FunctionError, FunctionResult, ResultExt};
-use crate::handler::function::listener::{RuntimeEvent, RuntimeListener};
-use crate::handler::function::module::console::{Console, Log};
-use crate::handler::function::module::ModuleLoader;
-use crate::handler::function::serde::JsValue;
+use crate::handler::function::js::error::{FunctionError, FunctionResult, ResultExt};
+use crate::handler::function::js::listener::{RuntimeEvent, RuntimeListener};
+use crate::handler::function::js::module::console::{Console, Log};
+use crate::handler::function::js::module::ModuleLoader;
+use crate::handler::function::js::serde::JsValue;
 
 pub struct FunctionConfig {
     pub(crate) listeners: Option<Vec<Box<dyn RuntimeListener>>>,

@@ -7,10 +7,10 @@ use rquickjs::prelude::{Async, Func, Opt};
 use rquickjs::{CatchResultExt, Ctx, Function, Object};
 
 use crate::handler::custom_node_adapter::CustomNodeAdapter;
-use crate::handler::function::error::{FunctionResult, ResultExt};
-use crate::handler::function::listener::{RuntimeEvent, RuntimeListener};
-use crate::handler::function::module::export_default;
-use crate::handler::function::serde::JsValue;
+use crate::handler::function::js::error::{FunctionResult, ResultExt};
+use crate::handler::function::js::listener::{RuntimeEvent, RuntimeListener};
+use crate::handler::function::js::module::export_default;
+use crate::handler::function::js::serde::JsValue;
 use crate::handler::graph::{DecisionGraph, DecisionGraphConfig};
 use crate::loader::DecisionLoader;
 

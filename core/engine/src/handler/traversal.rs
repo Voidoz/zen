@@ -7,7 +7,7 @@ use petgraph::{Incoming, Outgoing};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
-use std::time::Instant;
+use crate::platform::time::Performance;
 
 use crate::config::ZEN_CONFIG;
 use crate::model::{
@@ -122,7 +122,7 @@ impl GraphWalker {
         g: &mut StableDiDecisionGraph,
         mut on_trace: Option<F>,
     ) -> Option<NodeIndex> {
-        let start = Instant::now();
+        let start = Performance::now();
         if self.iter >= ITER_MAX {
             return None;
         }

@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::handler::function::serde::JsValue;
+use crate::handler::function::js::serde::JsValue;
 use anyhow::Context as _;
 use rquickjs::{Context, Ctx, Error as QError, FromJs, Module, Runtime};
 use serde::{Deserialize, Serialize};
